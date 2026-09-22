@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   HiOutlinePlus,
   HiOutlinePencilSquare,
   HiOutlineTrash,
   HiOutlineXMark,
   HiOutlinePhoto,
+  HiOutlineCloudArrowUp,
 } from 'react-icons/hi2';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ConfirmModal } from '@/components/common/ConfirmModal';
@@ -23,14 +24,16 @@ export default function BannersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
   const [deleteBannerId, setDeleteBannerId] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<CreateBannerDto>({
     title: '',
-    linkUrl: '/collections/diwali-festive-2026',
+    linkUrl: '',
     position: 'homepage_hero',
     isActive: true,
     sortOrder: 1,
-    imageUrl: '',
   });
 
   const { data: bannersResponse, isLoading } = useBanners();
@@ -42,16 +45,20 @@ export default function BannersPage() {
   const itemsFromApi = Array.isArray(rawData) ? rawData : (rawData?.data || rawData?.items);
   const banners: Banner[] = Array.isArray(itemsFromApi) ? itemsFromApi : [];
 
-  const handleOpenCreate = () => {
-    setEditingBanner(null);
+  const resetForm = () => {
     setFormData({
       title: '',
       linkUrl: '/collections',
       position: 'homepage_hero',
       isActive: true,
       sortOrder: banners.length + 1,
-      imageUrl: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=1200',
     });
+    setImagePreview(null);
+  };
+
+  const handleOpenCreate = () => {
+    setEditingBanner(null);
+    resetForm();
     setIsModalOpen(true);
   };
 
@@ -60,18 +67,75 @@ export default function BannersPage() {
     setFormData({
       title: b.title,
       linkUrl: b.linkUrl || '',
-      position: b.position as any,
+      position: b.position,
       isActive: b.isActive,
-      sortOrder: b.sortOrder || b.displayOrder || 0,
-      imageUrl: b.imageUrl || b.image || '',
+      sortOrder: b.sortOrder || 0,
     });
+    setImagePreview(b.imageUrl || null);
     setIsModalOpen(true);
+  };
+
+  const handleFileSelect = useCallback((file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file (JPEG, PNG, WebP)');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image size must be under 5 MB');
+      return;
+    }
+    setFormData((prev) => ({ ...prev, image: file }));
+    const reader = new FileReader();
+    reader.onload = (e) => setImagePreview(e.target?.result as string);
+    reader.readAsDataURL(file);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+      const file = e.dataTransfer.files?.[0];
+      if (file) handleFileSelect(file);
+    },
+    [handleFileSelect],
+  );
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFileSelect(file);
+  };
+
+  const handleRemoveImage = () => {
+    setFormData((prev) => {
+      const next = { ...prev };
+      delete next.image;
+      return next;
+    });
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.title) {
       toast.error('Please enter banner title');
+      return;
+    }
+    if (!editingBanner && !formData.image) {
+      toast.error('Please upload a banner image');
       return;
     }
 
@@ -86,22 +150,7 @@ export default function BannersPage() {
       }
       setIsModalOpen(false);
     } catch {
-      if (editingBanner) {
-        Object.assign(editingBanner, formData);
-        toast.success('Banner updated');
-      } else {
-        banners.unshift({
-          id: 'ban_' + Date.now(),
-          ...formData,
-          position: formData.position || 'homepage_hero',
-          isActive: formData.isActive ?? true,
-          sortOrder: formData.sortOrder ?? 1,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
-        toast.success('Banner created');
-      }
-      setIsModalOpen(false);
+      // error handled in hook
     }
   };
 
@@ -110,9 +159,7 @@ export default function BannersPage() {
     try {
       await deleteMutation.mutateAsync(deleteBannerId);
     } catch {
-      const idx = banners.findIndex((b) => b.id === deleteBannerId);
-      if (idx !== -1) banners.splice(idx, 1);
-      toast.success('Banner deleted');
+      // error handled in hook
     }
     setDeleteBannerId(null);
   };
@@ -150,7 +197,7 @@ export default function BannersPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {banners.map((b) => {
-            const img = b.imageUrl || b.image;
+            const img = b.imageUrl;
             return (
               <div
                 key={b.id}
@@ -221,7 +268,7 @@ export default function BannersPage() {
       {/* Add / Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <h3 className="text-base font-bold text-slate-900">
                 {editingBanner ? 'Edit Banner' : 'Create Banner'}
@@ -248,13 +295,87 @@ export default function BannersPage() {
                 />
               </div>
 
+              {/* Image Upload Zone */}
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Banner Image {!editingBanner && '*'}
+                </label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleFileInputChange}
+                  className="hidden"
+                  id="banner-image-upload"
+                />
+
+                {imagePreview ? (
+                  <div className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
+                    <img
+                      src={imagePreview}
+                      alt="Banner preview"
+                      className="w-full h-40 object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-3 py-1.5 text-[11px] font-semibold bg-white text-slate-800 rounded-lg shadow-md hover:bg-slate-50 transition-colors"
+                      >
+                        Replace
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleRemoveImage}
+                        className="px-3 py-1.5 text-[11px] font-semibold bg-rose-600 text-white rounded-lg shadow-md hover:bg-rose-700 transition-colors"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    {formData.image && (
+                      <div className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/60 text-white text-[10px] rounded-md backdrop-blur-sm">
+                        {formData.image.name} · {(formData.image.size / 1024).toFixed(0)} KB
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`relative flex flex-col items-center justify-center gap-2 h-40 rounded-xl border-2 border-dashed cursor-pointer transition-all ${
+                      isDragging
+                        ? 'border-indigo-500 bg-indigo-50/80 scale-[1.01]'
+                        : 'border-slate-300 bg-slate-50 hover:border-indigo-400 hover:bg-indigo-50/40'
+                    }`}
+                  >
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                        isDragging ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-200 text-slate-500'
+                      }`}
+                    >
+                      <HiOutlineCloudArrowUp className="w-5 h-5" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-slate-700 font-semibold text-xs">
+                        {isDragging ? 'Drop your image here' : 'Click to upload or drag & drop'}
+                      </p>
+                      <p className="text-slate-400 text-[10px] mt-0.5">
+                        JPEG, PNG, or WebP · Max 5 MB
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Placement Position</label>
                   <select
                     value={formData.position}
                     onChange={(e) =>
-                      setFormData({ ...formData, position: e.target.value as any })
+                      setFormData({ ...formData, position: e.target.value as CreateBannerDto['position'] })
                     }
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
                   >
@@ -273,17 +394,6 @@ export default function BannersPage() {
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Image URL</label>
-                <input
-                  type="text"
-                  value={formData.imageUrl || ''}
-                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                  placeholder="https://images.unsplash.com/..."
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
-                />
               </div>
 
               <div>

@@ -7,6 +7,23 @@ import {
   PaginationParams,
 } from '@/types';
 
+function buildCollectionFormData(dto: CreateCollectionDto | UpdateCollectionDto): FormData {
+  const formData = new FormData();
+  if (dto.name !== undefined) formData.append('name', dto.name);
+  if (dto.slug !== undefined && dto.slug !== '') formData.append('slug', dto.slug);
+  if (dto.description !== undefined && dto.description !== '') formData.append('description', dto.description);
+  if (dto.status !== undefined) formData.append('status', dto.status);
+  if (dto.isFeatured !== undefined) formData.append('isFeatured', String(dto.isFeatured));
+  if (dto.sortOrder !== undefined) formData.append('sortOrder', String(dto.sortOrder));
+  if (dto.image && dto.image instanceof File) {
+    formData.append('image', dto.image);
+  }
+  if (dto.productIds && Array.isArray(dto.productIds)) {
+    dto.productIds.forEach((id) => formData.append('productIds', id));
+  }
+  return formData;
+}
+
 export const collectionsService = {
   getAll: async (params?: PaginationParams & { status?: string; isFeatured?: boolean }): Promise<ApiResponse<{ data?: Collection[]; items?: Collection[]; meta?: any }>> => {
     const response = await axiosInstance.get(
@@ -31,17 +48,35 @@ export const collectionsService = {
   },
 
   create: async (dto: CreateCollectionDto): Promise<ApiResponse<Collection>> => {
+    let payload: any = dto;
+    let headers: Record<string, string> | undefined = undefined;
+
+    if (dto.image instanceof File) {
+      payload = buildCollectionFormData(dto);
+      headers = { 'Content-Type': 'multipart/form-data' };
+    }
+
     const response = await axiosInstance.post<ApiResponse<Collection>>(
       '/api/collections',
-      dto
+      payload,
+      headers ? { headers } : undefined
     );
     return response.data;
   },
 
   update: async (id: string, dto: UpdateCollectionDto): Promise<ApiResponse<Collection>> => {
+    let payload: any = dto;
+    let headers: Record<string, string> | undefined = undefined;
+
+    if (dto.image instanceof File) {
+      payload = buildCollectionFormData(dto);
+      headers = { 'Content-Type': 'multipart/form-data' };
+    }
+
     const response = await axiosInstance.patch<ApiResponse<Collection>>(
       `/api/collections/${id}`,
-      dto
+      payload,
+      headers ? { headers } : undefined
     );
     return response.data;
   },

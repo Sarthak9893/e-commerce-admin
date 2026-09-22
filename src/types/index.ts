@@ -361,8 +361,8 @@ export interface Collection {
   title?: string;
   slug: string;
   description?: string;
-  imageUrl?: string;
   image?: string;
+  imageUrl?: string;
   isFeatured?: boolean;
   status: 'active' | 'inactive';
   isActive?: boolean;
@@ -375,14 +375,11 @@ export interface Collection {
 
 export interface CreateCollectionDto {
   name: string;
-  title?: string;
+  image?: File;
   slug?: string;
   description?: string;
-  imageUrl?: string;
-  image?: string;
   isFeatured?: boolean;
   status?: 'active' | 'inactive';
-  isActive?: boolean;
   sortOrder?: number;
   productIds?: string[];
 }
@@ -461,16 +458,13 @@ export interface UpdateReviewStatusDto {
 export interface Banner {
   id: string;
   title: string;
-  subtitle?: string;
   linkUrl?: string;
-  position: 'homepage_hero' | 'category_top' | 'promo_strip' | string;
+  position: 'homepage_hero' | 'category_top' | 'promo_strip';
   sortOrder: number;
-  displayOrder?: number;
   isActive: boolean;
   startsAt?: string;
   endsAt?: string;
   imageUrl?: string;
-  image?: string;
   publicId?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -478,17 +472,13 @@ export interface Banner {
 
 export interface CreateBannerDto {
   title: string;
-  subtitle?: string;
+  image?: File;
   linkUrl?: string;
-  position?: 'homepage_hero' | 'category_top' | 'promo_strip' | string;
+  position?: 'homepage_hero' | 'category_top' | 'promo_strip';
   sortOrder?: number;
-  displayOrder?: number;
   isActive?: boolean;
   startsAt?: string;
   endsAt?: string;
-  imageUrl?: string;
-  image?: string;
-  publicId?: string;
 }
 
 export interface UpdateBannerDto extends Partial<CreateBannerDto> {}
