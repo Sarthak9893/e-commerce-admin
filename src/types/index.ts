@@ -610,3 +610,29 @@ export interface StoreSettings {
   maintenanceMode?: boolean;
   address?: string;
 }
+
+// ================= REELS =================
+export interface Reel {
+  id: string;
+  title: string;
+  reelUrl: string;
+  sortOrder: number;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateReelDto {
+  title: string;
+  reelUrl: string;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export interface UpdateReelDto extends Partial<CreateReelDto> {}
+
+export interface ReelFilterParams extends Omit<PaginationParams, 'sortBy' | 'sortOrder'> {
+  isActive?: boolean;
+  sortBy?: 'sortOrder' | 'createdAt' | 'title' | string;
+  sortOrder?: 'ASC' | 'DESC' | 'asc' | 'desc';
+}
